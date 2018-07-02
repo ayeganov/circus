@@ -38,7 +38,7 @@ class AsyncCircusClient(object):
         get_connection(self.socket, endpoint, ssh_server, ssh_keyfile)
         self._timeout = timeout
         self.timeout = timeout * 1000
-        self.stream = ZMQStream(self.socket, tornado.ioloop.IOLoop.instance())
+        self.stream = ZMQStream(self.socket, tornado.ioloop.IOLoop.current())
 
     def _init_context(self, context):
         self.context = context or zmq.Context.instance()
@@ -74,15 +74,18 @@ class AsyncCircusClient(object):
 
         while True:
             messages = yield tornado.gen.Task(self.stream.on_recv)
-            for message in messages:
-                try:
-                    res = json.loads(message)
-                    if res.get('id') != call_id:
-                        # we got the wrong message
-                        continue
-                    raise tornado.gen.Return(res)
-                except ValueError as e:
-                    raise CallError(str(e))
+            try:
+                for message in (yield messages):
+                    try:
+                        res = json.loads(message)
+                        if res.get('id') != call_id:
+                            # we got the wrong message
+                            continue
+                        raise tornado.gen.Return(res)
+                    except ValueError as e:
+                        raise CallError(str(e))
+            except Exception as e:
+                raise CallError(str(e))
 
 
 class CircusClient(object):
