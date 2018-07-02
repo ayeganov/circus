@@ -45,7 +45,7 @@ def watcher_defaults():
         'copy_path': False,
         'hooks': dict(),
         'respawn': True,
-        'autostart': True,
+        'autostart': False,
         'use_papa': False}
 
 
