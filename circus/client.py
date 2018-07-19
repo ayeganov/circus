@@ -1,5 +1,6 @@
 
 # -*- coding: utf-8 -
+import datetime
 import errno
 import uuid
 
@@ -28,7 +29,7 @@ def make_json(command, **props):
 class AsyncCircusClient(object):
 
     def __init__(self, context=None, endpoint=DEFAULT_ENDPOINT_DEALER,
-                 timeout=5.0, ssh_server=None, ssh_keyfile=None):
+                 timeout=5.0, ssh_server=None, ssh_keyfile=None, loop=None):
         self._init_context(context)
         self.endpoint = endpoint
         self._id = b(uuid.uuid4().hex)
@@ -36,9 +37,10 @@ class AsyncCircusClient(object):
         self.socket.setsockopt(zmq.IDENTITY, self._id)
         self.socket.setsockopt(zmq.LINGER, 0)
         get_connection(self.socket, endpoint, ssh_server, ssh_keyfile)
-        self._timeout = timeout
-        self.timeout = timeout * 1000
-        self.stream = ZMQStream(self.socket, tornado.ioloop.IOLoop.instance())
+        self._timeout = datetime.timedelta(seconds=timeout)
+        self._timeout_handles = {}
+        self._loop = loop or tornado.ioloop.IOLoop.current()
+        self.stream = ZMQStream(self.socket, self._loop)
 
     def _init_context(self, context):
         self.context = context or zmq.Context.instance()
@@ -72,14 +74,20 @@ class AsyncCircusClient(object):
         except zmq.ZMQError as e:
             raise CallError(str(e))
 
+        def handle_timeout(future):
+            '''handle the timeout if it takes too long to communicate with arbiter'''
+            future.set_exception(CallError("Timed out waiting for response from arbiter"))
+
         while True:
-            messages = yield tornado.gen.Task(self.stream.on_recv)
-            for message in messages:
+            messages = tornado.gen.Task(self.stream.on_recv)
+            self._timeout_handles[call_id] = self._loop.add_timeout(self._timeout, handle_timeout, messages)
+            for message in (yield messages):
                 try:
                     res = json.loads(message)
                     if res.get('id') != call_id:
                         # we got the wrong message
                         continue
+                    self._loop.remove_timeout(self._timeout_handles[call_id])
                     raise tornado.gen.Return(res)
                 except ValueError as e:
                     raise CallError(str(e))
