@@ -248,6 +248,8 @@ def get_config(config_file):
                     watcher['rlimits'][limit] = rlimit_value(val)
                 elif opt == 'priority':
                     watcher['priority'] = dget(section, "priority", 0, int)
+                elif opt == 'cpu_affinity':
+                    watcher['cpu_affinity'] = dget(section, "cpu_affinity", None, str)
                 elif opt == 'use_papa' and dget(section, 'use_papa', False,
                                                 bool):
                     if papa:

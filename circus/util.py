@@ -1094,3 +1094,23 @@ def check_future_exception_and_log(future):
                 exc_info = future.exc_info()
                 traceback.print_tb(exc_info[2])
             return exception
+
+
+def cpu_affinity_mask_to_cpu_idx(affinity_mask):
+    '''
+    Converts the affinity mask, which comes as a hexadecimal string "FFFF",
+    into CPU idx integers. For example: 3 -> [0, 1], F -> [0, 1, 2, 3].
+
+    If affinity_mask is None then empty list is returned.
+
+    @param affinity_mask - hex string
+    @returns list of integers representing CPU indicies, empty list on error
+    '''
+    if affinity_mask is None:
+        return []
+    try:
+        binary_str = bin(int(affinity_mask, 16))[2:]
+        return [idx for idx, bit in enumerate(reversed(binary_str)) if bit == "1"]
+    except ValueError:
+        logger.error("Failed to parse affinity: %s", affinity_mask)
+        return []

@@ -209,7 +209,7 @@ class Watcher(object):
                  stdin_socket=None, close_child_stdin=True,
                  close_child_stdout=False,
                  close_child_stderr=False, virtualenv_py_ver=None,
-                 use_papa=False, **options):
+                 use_papa=False, cpu_affinity=None, **options):
         self.name = name
         self.use_sockets = use_sockets
         self.on_demand = on_demand
@@ -248,6 +248,7 @@ class Watcher(object):
         self.close_child_stdout = close_child_stdout
         self.close_child_stderr = close_child_stderr
         self.use_papa = use_papa and papa is not None
+        self.cpu_affinity = cpu_affinity
         self.loop = loop or ioloop.IOLoop.instance()
 
         if singleton and self.numprocesses not in (0, 1):
@@ -669,7 +670,8 @@ class Watcher(object):
                                   pipe_stderr=pipe_stderr,
                                   close_child_stdin=self.close_child_stdin,
                                   close_child_stdout=self.close_child_stdout,
-                                  close_child_stderr=self.close_child_stderr)
+                                  close_child_stderr=self.close_child_stderr,
+                                  cpu_affinity=self.cpu_affinity)
 
                 # stream stderr/stdout if configured
                 if self.stream_redirector:

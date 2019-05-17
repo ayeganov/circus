@@ -20,14 +20,15 @@ try:
 except ImportError:
     resource = None     # NOQA
 
-from psutil import (Popen, STATUS_ZOMBIE, STATUS_DEAD, NoSuchProcess,
+from psutil import (Popen, Process as PSProcess, STATUS_ZOMBIE, STATUS_DEAD, NoSuchProcess,
                     AccessDenied)
 
 from circus.py3compat import bytestring, string_types, quote
 from circus.sockets import CircusSocket
 from circus.util import (get_info, to_uid, to_gid, debuglog, get_working_dir,
                          ObjectDict, replace_gnu_args, get_default_gid,
-                         get_username_from_uid, IS_WINDOWS)
+                         get_username_from_uid, IS_WINDOWS,
+                         cpu_affinity_mask_to_cpu_idx)
 from circus import logger
 
 
@@ -174,7 +175,8 @@ class Process(object):
                  shell=False, uid=None, gid=None, env=None, rlimits=None,
                  executable=None, use_fds=False, watcher=None, spawn=True,
                  pipe_stdout=True, pipe_stderr=True, close_child_stdin=True,
-                 close_child_stdout=False, close_child_stderr=False):
+                 close_child_stdout=False, close_child_stderr=False,
+                 cpu_affinity=None):
 
         self.name = name
         self.wid = wid
@@ -205,6 +207,7 @@ class Process(object):
         self._worker = None
         self.redirected = False
         self.started = 0
+        self._cpu_affinity = cpu_affinity_mask_to_cpu_idx(cpu_affinity)
 
         if self.uid is not None and self.gid is None:
             self.gid = get_default_gid(self.uid)
@@ -358,11 +361,15 @@ class Process(object):
         if self.pipe_stderr:
             extra['stderr'] = PIPE
 
+        this_proc = PSProcess()
+        this_proc.cpu_affinity(self._cpu_affinity)
+        logger.info("Setting affinity of '%s' to %s", self.name, self._cpu_affinity)
         self._worker = Popen(args, cwd=self.working_dir,
                              shell=self.shell, preexec_fn=preexec_fn,
                              env=self.env, close_fds=not self.use_fds,
                              executable=self.executable, **extra)
 
+        this_proc.cpu_affinity([])
         # let go of sockets created only for self._worker to inherit
         self._sockets = []
 
